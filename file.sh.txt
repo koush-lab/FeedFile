@@ -1,0 +1,52 @@
+#!/bin/bash
+
+ENV_FILE_NAME=$1 (Parametrized 1 as Dev, 2 as UAT & 3 as PROD)
+ENV_FILE=/env/path/$ENV_FILE_NAME.txt
+FILE_PATH=/path/where/shell/file/is/kept/
+LOG_FILE=$FILE_PATH/LOG/filename_`date+%Y%m%d%H%M%S.log
+PY_SCRIPTS_PATH=/path/where/python/file/is/kept/
+host=`hostname`
+serviceid=`whoami`
+SENDER_MAIL=`koushikde57@gmail.com`
+RECIPIENT_MAIL=`koushikde57@hotmail.com`
+
+exec >> $LOG_FILE 2>&1
+
+### To check the Env File existence
+
+if [ -e $ENV_FILE ]
+then
+    echo "ENV File exixts: $ENV_FILE"
+else
+    echo "ENV File does not exists: $ENV_FILE"
+         exit 1
+fi
+
+### Below script to pick the file from the path dynamically through parametrized hive table
+
+hive --silent=true -e "select param_value from hivedb.table where <condition>;" > $FILE_PATH/file_name.txt
+
+### To handle the issue of unavailability of file
+
+if [$? -ne 0]
+   then
+      echo "File not present" |mail -s "$env $host job Failure|||feed file not available -a $LOG_FILE -r $SENDER_MAIL $RECIPIENT_MAIL
+      exit 1
+fi;
+
+#### SPARK SUBMIT FOR FEED FILE AVAILABLE
+
+spark-submit --driver-memory 8g --driver-cores 2 --executor-memory 16g --executor-cores 4 --conf spark.port.maxRetries=50 --conf sparkkryoserializer.buffer.max 1024 --deploy-mode client --queue gform_355_yarn --master yarn --conf "spark.ui.port=4090" $PY_SCRIPTS_PATH/file.py 
+
+### EMAIL TRIGGER PARAM #####
+
+if [$? -eq 0]
+   then
+       echo "Table loaded sucessfully" |mail -s $env $host SUCCESS || FEED LOADED SUCCESSFULLY" -a $LOG_FILE -r $SENDER_MAIL $RECIPIENT_MAIL  
+   else
+       echo "Table not loaded sucessfully" |mail -s $env $host SUCCESS || FEED NOT LOADED SUCCESSFULLY" -a $LOG_FILE -r $SENDER_MAIL $RECIPIENT_MAIL
+
+fi;
+
+############################# EOF #########################
+
